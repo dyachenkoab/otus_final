@@ -17,18 +17,10 @@ static VoskRecognizer *recognizer = nullptr;
 static VoskModel *model = nullptr;
 static std::deque<char *> chunks;
 
-typedef struct _CustomData
-{
-    GstElement *pipeline, *source, *fsink, *audioconvert, *wavenc, *capsfilter, *asink;
-    gboolean playing; /* Are we in the PLAYING state? */
-    gboolean terminate; /* Should we terminate execution? */
-    gint64 duration;
-} CustomData;
-
 static void handle_gstreamer_message(CustomData *data, GstMessage *msg);
 static GstFlowReturn new_sample(GstAppSink *appsink, gpointer);
-static GstFlowReturn new_preroll(GstAppSink*, gpointer);
-static void innerStream(VoskRecognizer *phraseRecognizer);
+static GstFlowReturn new_preroll(GstAppSink *, gpointer);
+static void innerStream(VoskRecognizer *phraseRecognizer, gboolean &terminate);
 static char *strTok(const char *str, const char *razd);
 static char *tokenizer(const char *str);
 
@@ -47,20 +39,63 @@ char *Listener::getChunk()
     return chunk;
 }
 
-void Listener::recognize(int argc, char *argv[])
+void Listener::recognize()
 {
-    CustomData data;
-    GstStateChangeReturn ret;
-    GstBus *bus = NULL;
-    GstMessage *msg = NULL;
-    GstCaps *caps = NULL;
+    /* Wait until error or EOS */
+    GstBus *bus = gst_element_get_bus(data.pipeline);
+    int final = 0;
+    do {
+        GstMessage *msg = gst_bus_pop(bus);
+
+        /* Parse message */
+        if (msg != NULL) {
+            handle_gstreamer_message(&data, msg);
+        }
+        if (!fullStream) {
+            {
+                std::unique_lock lk { bufferMutex };
+                bufferCondition.wait(lk, [] { return bufferProcessed; });
+                final = vosk_recognizer_accept_waveform(recognizer, cbuffer, SZ);
+                bufferProcessed = false;
+            }
+
+            if (final) {
+                char *ch = const_cast<char *>(vosk_recognizer_result(recognizer));
+                auto token = tokenizer(ch);
+                std::cout << "token: " << token << '\n';
+
+                if (!strcmp(token, "голосовое управление")) {
+                    std::cout << "Phrase caught\n";
+                    vosk_recognizer_free(recognizer);
+                    fullStream = true;
+                    recognizer = nullptr;
+                    recognizer = vosk_recognizer_new(model, 8000.0);
+                    auto innerThread = std::thread(innerStream, recognizer,
+                                       std::ref(data.terminate));
+                    innerThread.join();
+                }
+            }
+        }
+    } while (!data.terminate);
+
+    /* Free resources */
+    gst_object_unref(bus);
+    gst_element_set_state(data.pipeline, GST_STATE_NULL);
+    gst_object_unref(data.pipeline);
+    vosk_recognizer_free(recognizer);
+    vosk_model_free(model);
+}
+
+void Listener::init(int argc, char *argv[])
+{
+    gst_init(&argc, &argv);
 
     model = vosk_model_new("model");
     recognizer = vosk_recognizer_new_grm(model, 8000.0, arr);
 
+    //    CustomData data;
     data.duration = GST_CLOCK_TIME_NONE;
     data.terminate = FALSE;
-    gst_init(&argc, &argv);
 
     /* Create the elements */
     data.source = gst_element_factory_make("pulsesrc", "psrc");
@@ -88,7 +123,7 @@ void Listener::recognize(int argc, char *argv[])
         return;
     }
 
-    caps = gst_caps_from_string("audio/x-raw,format=S16LE,channels=1,rate=8000");
+    GstCaps *caps = gst_caps_from_string("audio/x-raw,format=S16LE,channels=1,rate=8000");
     g_object_set(data.capsfilter, "caps", caps, NULL);
     g_object_set(data.source, "blocksize", SZ, NULL);
     g_object_set(data.asink, "blocksize", SZ, NULL);
@@ -99,60 +134,20 @@ void Listener::recognize(int argc, char *argv[])
     GstAppSinkCallbacks callbacks = { NULL, new_preroll, new_sample, { NULL } };
     gst_app_sink_set_callbacks(GST_APP_SINK(data.asink), &callbacks, NULL, NULL);
 
-    ret = gst_element_set_state(data.pipeline, GST_STATE_PLAYING);
+    GstStateChangeReturn ret = gst_element_set_state(data.pipeline, GST_STATE_PLAYING);
     if (ret == GST_STATE_CHANGE_FAILURE) {
         g_printerr("Unable to set the pipeline to the playing state.\n");
         gst_object_unref(data.pipeline);
         return;
     }
-
-    /* Wait until error or EOS */
-    bus = gst_element_get_bus(data.pipeline);
-    int final = 0;
-    char *ch = nullptr;
-
-    do {
-        msg = gst_bus_pop(bus);
-
-        /* Parse message */
-        if (msg != NULL) {
-            handle_gstreamer_message(&data, msg);
-        }
-        if (!fullStream) {
-            {
-                std::unique_lock lk { bufferMutex };
-                bufferCondition.wait(lk, [] { return bufferProcessed; });
-                final = vosk_recognizer_accept_waveform(recognizer, cbuffer, SZ);
-                bufferProcessed = false;
-            }
-
-            if (final) {
-                ch = const_cast<char *>(vosk_recognizer_result(recognizer));
-                auto token = tokenizer(ch);
-                std::cout << "token: " << token << '\n';
-
-                if (!strcmp(token, "голосовое управление")) {
-                    std::cout << "Phrase caught\n";
-                    vosk_recognizer_free(recognizer);
-                    fullStream = true;
-                    recognizer = nullptr;
-                    recognizer = vosk_recognizer_new(model, 8000.0);
-                    auto innerThread = std::thread(innerStream, recognizer);
-                    innerThread.join();
-                }
-            }
-        }
-    } while (!data.terminate);
-
-    /* Free resources */
-    gst_object_unref(bus);
-    gst_element_set_state(data.pipeline, GST_STATE_NULL);
-    gst_object_unref(data.pipeline);
-    vosk_recognizer_free(recognizer);
-    vosk_model_free(model);
 }
 
-static void innerStream(VoskRecognizer *phraseRecognizer)
+bool Listener::active() const
+{
+    return data.terminate;
+}
+
+static void innerStream(VoskRecognizer *phraseRecognizer, gboolean &terminate)
 {
     int final = 0;
     while (fullStream) {
@@ -168,11 +163,13 @@ static void innerStream(VoskRecognizer *phraseRecognizer)
             auto token = tokenizer(ch);
             std::cout << "token: " << token << '\n';
 
-            if (strstr(ch, "выключ") && strstr(ch, "управл")) {
+            if (strstr(ch, "заверш") && strstr(ch, "управл")) {
+                terminate = TRUE;
+                fullStream = false;
+            } else if (strstr(ch, "выключ") && strstr(ch, "управл")) {
                 std::cout << "GetBack!\n";
                 fullStream = false;
             } else {
-                // here our token. Move it to vector
                 {
                     std::unique_lock { chunkMutex };
                     chunks.push_back(token);
@@ -186,7 +183,7 @@ static void innerStream(VoskRecognizer *phraseRecognizer)
     recognizer = vosk_recognizer_new_grm(model, 8000.0, arr);
 }
 
-static GstFlowReturn new_preroll(GstAppSink*, gpointer)
+static GstFlowReturn new_preroll(GstAppSink *, gpointer)
 {
     g_print("Got preroll!\n");
     return GST_FLOW_OK;
@@ -254,16 +251,16 @@ static char *tokenizer(const char *str)
 
 static char *strTok(const char *str, const char *razd)
 {
-    static char *p = nullptr, *p1, *p2;
-    char *p3;
+    static char *p = nullptr, *p1 = nullptr, *p2 = nullptr;
+    char *p3 = nullptr;
     int state = 1;
-    int len;
+    int len = 0;
 
     auto isRazd = [&](char sym, const char *razd) {
         for (int i = 0; razd[i]; i++)
             if (razd[i] == sym)
-                return 1;
-        return 0;
+                return true;
+        return false;
     };
 
     if (str) {

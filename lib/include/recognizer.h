@@ -2,9 +2,10 @@
 #define RECOGNIZER_H
 
 namespace recognizer {
-    char *getChunk();
-    void recognize(int argc, char *argv[]);
-} // namespace RECOGNIZER
+void init(int argc, char *argv[]);
+void recognize();
+bool active();
+char *getChunk();
+} // namespace recognizer
 
 #endif // RECOGNIZER
-

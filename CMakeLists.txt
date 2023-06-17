@@ -16,6 +16,8 @@ add_subdirectory(lib)
 #--------------------------------
 add_executable(${PROJECT_NAME}
     main.cpp
+    worker.h
+    worker.cpp
 )
 target_link_libraries(${PROJECT_NAME} PUBLIC
         recognizer

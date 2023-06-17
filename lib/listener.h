@@ -8,16 +8,27 @@
 #include <condition_variable>
 #include <iostream>
 
+typedef struct _CustomData
+{
+    GstElement *pipeline, *source, *fsink, *audioconvert, *wavenc, *capsfilter, *asink;
+    gboolean playing; /* Are we in the PLAYING state? */
+    gboolean terminate; /* Should we terminate execution? */
+    gint64 duration;
+} CustomData;
+
+
 class Listener
 {
 public:
     char *getChunk();
-    void recognize(int argc, char *argv[]);
+    void recognize();
+    void init(int argc, char *argv[]);
+    bool active() const;
     static Listener &instance();
 
 private:
-    Listener() { }
-
+    Listener() = default;
+    CustomData data;
 public:
     Listener(Listener const &) = delete;
     void operator=(Listener const &) = delete;
