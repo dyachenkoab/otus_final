@@ -1,8 +1,0 @@
-/home/user4/Download/untitled5/lib/build/CMakeFiles/install/strip.dir
-/home/user4/Download/untitled5/lib/build/CMakeFiles/install/local.dir
-/home/user4/Download/untitled5/lib/build/CMakeFiles/vosk.dir
-/home/user4/Download/untitled5/lib/build/CMakeFiles/edit_cache.dir
-/home/user4/Download/untitled5/lib/build/CMakeFiles/rebuild_cache.dir
-/home/user4/Download/untitled5/lib/build/CMakeFiles/recognizer.dir
-/home/user4/Download/untitled5/lib/build/CMakeFiles/list_install_components.dir
-/home/user4/Download/untitled5/lib/build/CMakeFiles/install.dir

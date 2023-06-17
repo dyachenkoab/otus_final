@@ -1,2 +1,0 @@
-/usr/bin/ar qc libvosk.a  CMakeFiles/vosk.dir/vosk-api/src/kaldi_recognizer.cc.o CMakeFiles/vosk.dir/vosk-api/src/language_model.cc.o CMakeFiles/vosk.dir/vosk-api/src/model.cc.o CMakeFiles/vosk.dir/vosk-api/src/spk_model.cc.o CMakeFiles/vosk.dir/vosk-api/src/vosk_api.cc.o
-/usr/bin/ranlib libvosk.a
