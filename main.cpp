@@ -1,9 +1,11 @@
-#include "recognizer.c"
+#include <recognizer.h>
+#include <thread>
+#include <iostream>
 
 void printChunks()
 {
     while (true) {
-        auto chunk = getChunk();
+        auto chunk = recognizer::getChunk();
         if (chunk) {
             std::cout << "Hello from chunk: " << chunk << '\n';
         }
@@ -12,7 +14,7 @@ void printChunks()
 
 int main(int argc, char *argv[])
 {
-    std::thread recognizeThread(recognize, argc, argv);
+    std::thread recognizeThread(recognizer::recognize, argc, argv);
     std::thread printThread(printChunks);
 
     recognizeThread.join();
