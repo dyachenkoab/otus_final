@@ -22,6 +22,12 @@ add_definitions(-DQT_NO_KEYWORDS)
 #                     GIT_REPOSITORY https://github.com/kaldi-asr/kaldi
 #                     FetchContent_MakeAvailable(kaldi))
 
+
+include(FetchContent)
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz)
+FetchContent_MakeAvailable(json)
+
+find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
 if ( NOT (PKGCONFIG_FOUND) )
       message(FATAL_ERROR "Please Install PPkgConfig: CMake will Exit")
@@ -56,7 +62,6 @@ set(API_SOURCES
 
 add_library(vosk STATIC ${API_SOURCES})
 
-find_package(Threads REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED)
 target_sources(${PROJECT_NAME}
@@ -90,6 +95,7 @@ include_directories(/home/user4/Download/kaldi/tools/openfst/lib)
 add_definitions(-DFST_NO_DYNAMIC_LINKING )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE vosk -ldl)
+target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
     ${GST_LIBRARIES}

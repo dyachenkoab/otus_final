@@ -2,10 +2,11 @@
 
 static void printChunks()
 {
-    while (recognizer::active()) {
+    while (!recognizer::terminated()) {
         auto chunk = recognizer::getChunk();
         if (chunk) {
             std::cout << "Hello from chunk: " << chunk << '\n';
+            delete chunk;
         }
     }
 }

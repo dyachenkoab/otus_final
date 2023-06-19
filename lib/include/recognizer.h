@@ -4,8 +4,8 @@
 namespace recognizer {
 void init(int argc, char *argv[]);
 void recognize();
-bool active();
-char *getChunk();
+bool terminated();
+char* getChunk();
 } // namespace recognizer
 
 #endif // RECOGNIZER

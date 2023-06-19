@@ -9,9 +9,9 @@ void recognize()
 {
     Listener::instance().recognize();
 }
-bool active()
+bool terminated()
 {
-    return Listener::instance().active();
+    return Listener::instance().terminated();
 }
 char *getChunk()
 {

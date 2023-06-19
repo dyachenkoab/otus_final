@@ -9,7 +9,7 @@ static std::mutex chunkMutex;
 static std::condition_variable bufferCondition;
 static std::condition_variable chunkCondition;
 
-static bool fullStream = false;
+static std::atomic<bool> fullStream = false;
 static bool bufferProcessed = false;
 
 static char cbuffer[SZ] { 0 };
@@ -20,9 +20,7 @@ static std::deque<char *> chunks;
 static void handle_gstreamer_message(CustomData *data, GstMessage *msg);
 static GstFlowReturn new_sample(GstAppSink *appsink, gpointer);
 static GstFlowReturn new_preroll(GstAppSink *, gpointer);
-static void innerStream(VoskRecognizer *phraseRecognizer, gboolean &terminate);
-static char *strTok(const char *str, const char *razd);
-static char *tokenizer(const char *str);
+static void innerStream(gboolean &terminate);
 
 Listener &Listener::instance()
 {
@@ -30,10 +28,22 @@ Listener &Listener::instance()
     return instance;
 }
 
+Listener::~Listener()
+{
+    /* Free resources */
+    gst_element_set_state(data.pipeline, GST_STATE_NULL);
+    gst_object_unref(data.pipeline);
+    vosk_recognizer_free(recognizer);
+    vosk_model_free(model);
+}
+
 char *Listener::getChunk()
 {
     std::unique_lock lk { chunkMutex };
-    chunkCondition.wait(lk, [] { return !chunks.empty(); });
+    chunkCondition.wait(lk, [this] { return !chunks.empty() || data.terminate; });
+    if (data.terminate) {
+        return nullptr;
+    }
     auto chunk = chunks.at(0);
     chunks.pop_front();
     return chunk;
@@ -51,6 +61,7 @@ void Listener::recognize()
         if (msg != NULL) {
             handle_gstreamer_message(&data, msg);
         }
+
         if (!fullStream) {
             {
                 std::unique_lock lk { bufferMutex };
@@ -60,30 +71,65 @@ void Listener::recognize()
             }
 
             if (final) {
-                char *ch = const_cast<char *>(vosk_recognizer_result(recognizer));
-                auto token = tokenizer(ch);
-                std::cout << "token: " << token << '\n';
+                const char *ch = vosk_recognizer_result(recognizer);
+                auto token = json::parse(ch);
+                std::cout << "token: " << token["text"] << '\n';
 
-                if (!strcmp(token, "голосовое управление")) {
+                if (token["text"] == "голосовое управление") {
                     std::cout << "Phrase caught\n";
                     vosk_recognizer_free(recognizer);
-                    fullStream = true;
                     recognizer = nullptr;
                     recognizer = vosk_recognizer_new(model, 8000.0);
-                    auto innerThread = std::thread(innerStream, recognizer,
-                                       std::ref(data.terminate));
+                    fullStream = true;
+                    auto innerThread =
+                        std::thread(innerStream, std::ref(data.terminate));
                     innerThread.join();
+                    std::cout << "terminated? " << data.terminate;
                 }
             }
         }
     } while (!data.terminate);
 
-    /* Free resources */
     gst_object_unref(bus);
-    gst_element_set_state(data.pipeline, GST_STATE_NULL);
-    gst_object_unref(data.pipeline);
+    chunkCondition.notify_all();
+}
+
+static void innerStream(gboolean &terminate)
+{
+    int final = 0;
+    while (fullStream) {
+        {
+            std::unique_lock lk { bufferMutex };
+            bufferCondition.wait(lk, [] { return bufferProcessed; });
+            final = vosk_recognizer_accept_waveform(recognizer, cbuffer, SZ);
+            bufferProcessed = false;
+        }
+
+        if (final) {
+            const char *ch = vosk_recognizer_result(recognizer);
+            auto token = json::parse(ch)["text"].get<std::string>();
+
+            if (strstr(token.c_str(), "выключ") && strstr(token.c_str(), "управл")) {
+                fullStream = false;
+            } else if (strstr(token.c_str(), "заверш") && strstr(token.c_str(), "управл")) {
+                fullStream = false;
+                terminate = TRUE;
+                return;
+            } else {
+                {
+                    std::unique_lock { chunkMutex };
+                    char *p = new char(token.size() + 1u);
+                    std::copy(token.data(), token.data() + token.size() + 1u,
+                          &p[0]);
+                    chunks.push_back(p);
+                }
+                chunkCondition.notify_all();
+            }
+        }
+    }
     vosk_recognizer_free(recognizer);
-    vosk_model_free(model);
+    recognizer = nullptr;
+    recognizer = vosk_recognizer_new_grm(model, 8000.0, arr);
 }
 
 void Listener::init(int argc, char *argv[])
@@ -142,45 +188,9 @@ void Listener::init(int argc, char *argv[])
     }
 }
 
-bool Listener::active() const
+bool Listener::terminated() const
 {
     return data.terminate;
-}
-
-static void innerStream(VoskRecognizer *phraseRecognizer, gboolean &terminate)
-{
-    int final = 0;
-    while (fullStream) {
-        {
-            std::unique_lock lk { bufferMutex };
-            bufferCondition.wait(lk, [] { return bufferProcessed; });
-            final = vosk_recognizer_accept_waveform(phraseRecognizer, cbuffer, SZ);
-            bufferProcessed = false;
-        }
-
-        if (final) {
-            const char *ch = vosk_recognizer_result(phraseRecognizer);
-            auto token = tokenizer(ch);
-            std::cout << "token: " << token << '\n';
-
-            if (strstr(ch, "заверш") && strstr(ch, "управл")) {
-                terminate = TRUE;
-                fullStream = false;
-            } else if (strstr(ch, "выключ") && strstr(ch, "управл")) {
-                std::cout << "GetBack!\n";
-                fullStream = false;
-            } else {
-                {
-                    std::unique_lock { chunkMutex };
-                    chunks.push_back(token);
-                }
-                chunkCondition.notify_all();
-            }
-        }
-    }
-    vosk_recognizer_free(recognizer);
-    recognizer = nullptr;
-    recognizer = vosk_recognizer_new_grm(model, 8000.0, arr);
 }
 
 static GstFlowReturn new_preroll(GstAppSink *, gpointer)
@@ -191,28 +201,27 @@ static GstFlowReturn new_preroll(GstAppSink *, gpointer)
 
 static GstFlowReturn new_sample(GstAppSink *appsink, gpointer)
 {
-    static int framecount = 0;
+    static std::atomic<int> framecount = 0;
     framecount++;
-    GstSample *sample = gst_app_sink_pull_sample(appsink);
-    GstBuffer *buffer = gst_sample_get_buffer(sample);
-
-    GstMapInfo map;
-    gst_buffer_map(buffer, &map, GST_MAP_READ);
-
     {
         std::unique_lock { bufferMutex };
+        GstSample *sample = gst_app_sink_pull_sample(appsink);
+        GstBuffer *buffer = gst_sample_get_buffer(sample);
+        GstMapInfo map;
+        gst_buffer_map(buffer, &map, GST_MAP_READ);
         memcpy(cbuffer, map.data, (size_t)map.size);
+        gst_buffer_unmap(buffer, &map);
+
+        gst_sample_unref(sample);
         bufferProcessed = true;
     }
     bufferCondition.notify_all();
-    gst_buffer_unmap(buffer, &map);
 
-    // print dot every 30 frames
+    // print dot every 30 frames just for sure that we do not stack
     if (framecount % 30 == 0) {
         g_print(".");
     }
 
-    gst_sample_unref(sample);
     return GST_FLOW_OK;
 }
 
@@ -240,64 +249,4 @@ static void handle_gstreamer_message(CustomData *data, GstMessage *msg)
             break;
     }
     gst_message_unref(msg);
-}
-
-static char *tokenizer(const char *str)
-{
-    auto startWord = const_cast<char *>(strrchr(str, ':'));
-    startWord = startWord + 2 * sizeof(char);
-    return strTok(startWord, "\"");
-}
-
-static char *strTok(const char *str, const char *razd)
-{
-    static char *p = nullptr, *p1 = nullptr, *p2 = nullptr;
-    char *p3 = nullptr;
-    int state = 1;
-    int len = 0;
-
-    auto isRazd = [&](char sym, const char *razd) {
-        for (int i = 0; razd[i]; i++)
-            if (razd[i] == sym)
-                return true;
-        return false;
-    };
-
-    if (str) {
-        for (len = 0; str[len]; len++)
-            ;
-        p = (char *)malloc((len + 1) * sizeof(char));
-        for (int k = 0; (p[k] = str[k]); k++)
-            ;
-        p1 = p2 = p;
-    }
-
-    while (true) {
-        if (p == nullptr)
-            return nullptr;
-        switch (state) {
-            case 1:
-                if (*p2 == '\0') {
-                    free(p);
-                    p = nullptr;
-                    return nullptr;
-                }
-                if (isRazd(*p2, razd)) {
-                    p1 = ++p2;
-                    break;
-                }
-                state = 2;
-                [[fallthrough]];
-            case 2:
-                if (*p2 == '\0' || isRazd(*p2, razd)) {
-                    p3 = p1;
-                    if (*p2 == '\0')
-                        return p3;
-                    *p2 = '\0';
-                    p1 = ++p2;
-                    return p3;
-                }
-                p2++;
-        }
-    }
 }

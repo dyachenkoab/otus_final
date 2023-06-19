@@ -2,11 +2,16 @@
 #include <gst/app/gstappsink.h>
 #include <gst/gst.h>
 #include <vosk_api.h>
+#include <nlohmann/json.hpp>
 #include <thread>
 #include <mutex>
+#include <shared_mutex>
 #include <deque>
+#include <atomic>
 #include <condition_variable>
 #include <iostream>
+
+using json = nlohmann::json;
 
 typedef struct _CustomData
 {
@@ -23,11 +28,12 @@ public:
     char *getChunk();
     void recognize();
     void init(int argc, char *argv[]);
-    bool active() const;
+    bool terminated() const;
     static Listener &instance();
 
 private:
     Listener() = default;
+    ~Listener();
     CustomData data;
 public:
     Listener(Listener const &) = delete;
