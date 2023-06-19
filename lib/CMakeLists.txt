@@ -22,6 +22,8 @@ add_definitions(-DQT_NO_KEYWORDS)
 #                     GIT_REPOSITORY https://github.com/kaldi-asr/kaldi
 #                     FetchContent_MakeAvailable(kaldi))
 
+include(CMakePrintHelpers)
+cmake_print_variables(CMAKE_PREFIX_PATH)
 
 include(FetchContent)
 FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz)
@@ -48,8 +50,7 @@ if ( NOT (PKGCONFIG_FOUND) )
         endif()
 
 
-include_directories("/home/user4/Download/kaldi")
-include_directories("/home/user4/Download/kaldi")
+include_directories("${CMAKE_PREFIX_PATH}/kaldi")
 include_directories("${GST_INCLUDE_DIRS}")
 
 set(API_SOURCES
@@ -98,29 +99,29 @@ target_link_libraries(${PROJECT_NAME} PRIVATE vosk -ldl)
 target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
-    ${GST_LIBRARIES}
-    ${GST_APP_LIBRARIES}
-    Threads::Threads
-   /home/user4/Download/kaldi/src/lib/libkaldi-online2.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-decoder.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-ivector.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-gmm.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-nnet3.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-tree.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-feat.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-lat.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-lm.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-hmm.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-transform.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-cudamatrix.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-matrix.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-fstext.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-util.so
-   /home/user4/Download/kaldi/src/lib/libkaldi-base.so
-   /home/user4/Download/kaldi/tools/OpenBLAS/libopenblas.so
-   /home/user4/Download/kaldi/tools/openfst/lib/libfst.so
-   /home/user4/Download/kaldi/tools/openfst/lib/libfstngram.so
-    -lgfortran -lm
+        ${GST_LIBRARIES}
+        ${GST_APP_LIBRARIES}
+        Threads::Threads
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-online2.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-decoder.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-ivector.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-gmm.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-nnet3.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-tree.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-feat.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-lat.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-lm.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-hmm.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-transform.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-cudamatrix.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-matrix.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-fstext.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-util.so
+        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-base.so
+        ${CMAKE_PREFIX_PATH}/kaldi/tools/OpenBLAS/libopenblas.so
+        ${CMAKE_PREFIX_PATH}/kaldi/tools/openfst/lib/libfst.so
+        ${CMAKE_PREFIX_PATH}/kaldi/tools/openfst/lib/libfstngram.so
+        -lgfortran -lm
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
