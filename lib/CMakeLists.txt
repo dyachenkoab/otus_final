@@ -15,12 +15,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_definitions(-DHAVE_OPENBLAS)
 add_definitions(-DQT_NO_KEYWORDS)
 
-
-#include(FetchContent) # once in the project to include the module
-
-#FetchContent_Declare(kaldi
-#                     GIT_REPOSITORY https://github.com/kaldi-asr/kaldi
-#                     FetchContent_MakeAvailable(kaldi))
+include(ExternalProject)
+ExternalProject_Add(kaldi
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/kaldi
+)
 
 include(CMakePrintHelpers)
 cmake_print_variables(CMAKE_PREFIX_PATH)
@@ -50,7 +48,6 @@ if ( NOT (PKGCONFIG_FOUND) )
         endif()
 
 
-include_directories("${CMAKE_PREFIX_PATH}/kaldi")
 include_directories("${GST_INCLUDE_DIRS}")
 
 set(API_SOURCES
@@ -62,6 +59,7 @@ set(API_SOURCES
 )
 
 add_library(vosk STATIC ${API_SOURCES})
+add_dependencies (vosk kaldi)
 
 
 add_library(${PROJECT_NAME} SHARED)
@@ -88,10 +86,8 @@ add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
     ${CMAKE_CURRENT_SOURCE_DIR}/config $<TARGET_FILE_DIR:${PROJECT_NAME}>/..)
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/vosk-api/src")
-include_directories(/home/user4/Download/kaldi/src)
-include_directories(/home/user4/Download/kaldi/tools/OpenBLAS)
-include_directories(/home/user4/Download/kaldi/tools/openfst/include)
-include_directories(/home/user4/Download/kaldi/tools/openfst/lib)
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/include/")
 
 add_definitions(-DFST_NO_DYNAMIC_LINKING )
 
@@ -102,25 +98,24 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
         ${GST_LIBRARIES}
         ${GST_APP_LIBRARIES}
         Threads::Threads
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-online2.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-decoder.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-ivector.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-gmm.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-nnet3.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-tree.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-feat.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-lat.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-lm.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-hmm.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-transform.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-cudamatrix.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-matrix.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-fstext.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-util.so
-        ${CMAKE_PREFIX_PATH}/kaldi/src/lib/libkaldi-base.so
-        ${CMAKE_PREFIX_PATH}/kaldi/tools/OpenBLAS/libopenblas.so
-        ${CMAKE_PREFIX_PATH}/kaldi/tools/openfst/lib/libfst.so
-        ${CMAKE_PREFIX_PATH}/kaldi/tools/openfst/lib/libfstngram.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-online2.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-decoder.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-ivector.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-gmm.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-nnet3.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-tree.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-feat.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-lat.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-lm.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-hmm.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-transform.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-cudamatrix.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-matrix.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-fstext.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-util.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libkaldi-base.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libfst.so
+        ${CMAKE_CURRENT_SOURCE_DIR}/kaldi/src/lib/libfstngram.so
         -lgfortran -lm
 )
 
