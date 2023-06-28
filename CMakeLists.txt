@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 
-project(voiceRecognizer LANGUAGES CXX)
+set(PROJECT_VERSION 0.1)
+project(voiceRecognizer VERSION ${PROJECT_VERSION} LANGUAGES CXX)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(PKG_CONFIG_USE_CMAKE_PREFIX_PATH ON)
