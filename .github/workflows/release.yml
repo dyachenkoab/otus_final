@@ -1,0 +1,43 @@
+name: 'C++ CI'
+
+on:
+  push:
+    branches:
+      - master
+      - feature
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - run: sudo apt-get update && sudo apt-get install libgstreamer1.0-dev gstreamer1.0-tools gstreamer1.0-plugins-ugly libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-dev libgstreamer-plugins-bad1.0-dev gfortran-8 libgfortran-8-dev libglfw3-dev libopenblas-dev libatlas-base-dev cmake git autoconf automake libtool libsvn-dev wget zlib1g-dev -y
+      - run: cmake . -DPATCH_VERSION=${{ github.run_number }}
+      - run: cmake --build .
+      - run: cmake --build . --target package
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.run_number }}
+          release_name: Release ${{ github.run_number }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./voiceRecognizer-0.1-Linux.deb
+          asset_name: voiceRecognizer-0.1-Linux.deb
+          asset_content_type: application/vnd.debian.binary-package
